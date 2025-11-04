@@ -1,0 +1,284 @@
+<!--
+Проект: Кәсіп таңдау (қазақша)
+Файл: index.html
+Түсініктеме: Бір файлдық веб-жоба (HTML + CSS + JS). Қарапайым фронтенд — ешқандай күрделі бэкенд жоқ.
+Нұсқаулық GitHub-қа жүктеу:
+1. Жаңа репозиторий жасаңыз (мысалы: profession-picker).
+2. Бұл файлды index.html деп сақтап, репоға қосыңыз.
+3. GitHub Pages-ті қосып, сайтты жариялаңыз (Settings → Pages, branch: main, folder: /).
+
+Функционал:
+- Бағыттарды (мысалы: Медицина, Педагогика) тізімдеу
+- Әр бағытқа қатысты мамандықтарды көрсету
+- Іздеу мен сүзу
+- Маманданды таңдап — қосымша мәліметтер көрсету
+- Таңдауларды жергілікті сақтауға (localStorage) мүмкіндік
+
+Технологиялар: HTML, CSS, Bootstrap 5 (CDN), jQuery (CDN), vanilla JS
+*/-->
+
+<!doctype html>
+<html lang="kk">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Кәсіп таңдауға көмектесетін сайт</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+  <style>
+    /* Өзіңіздің стильдеріңіз */
+    body{background:#f7fafc;font-family:Inter, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial}
+    .hero{background:linear-gradient(90deg,#5eead4 0%, #60a5fa 100%);color:#032; padding:40px 0}
+    .card-special{cursor:pointer; transition:transform .12s ease, box-shadow .12s ease}
+    .card-special:hover{transform:translateY(-6px); box-shadow:0 8px 30px rgba(50,50,93,.12)}
+    .badge-dir{font-size:.85rem}
+    .no-results{padding:40px 0;text-align:center;color:#777}
+    .fav{color:#e11d48}
+    .ks-title{font-weight:700}
+  </style>
+</head>
+<body>
+  <header class="hero">
+    <div class="container">
+      <div class="row align-items-center">
+        <div class="col-md-8">
+          <h1 class="ks-title">Кәсіп таңдау — жеңіл және тез</h1>
+          <p>Қазақстан бойынша негізгі бағыттар мен мамандықтарды көріп, өзіңізге сәйкес келетінді таңдаңыз.</p>
+        </div>
+        <div class="col-md-4 text-md-end">
+          <button id="view-favs" class="btn btn-outline-light">Таңдауларым <span id="fav-count" class="badge bg-danger ms-2">0</span></button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="container my-4">
+    <div class="row gy-3">
+      <div class="col-lg-4">
+        <div class="card p-3">
+          <h5>Бағыттар</h5>
+          <div id="directions" class="list-group mt-2"></div>
+          <hr>
+          <h6>Іздеу</h6>
+          <input id="search" class="form-control" placeholder="мамандық атауы бойынша іздеу...">
+          <div class="mt-3 small text-muted">Фильтр: елдегі танымал бағыттар.</div>
+        </div>
+      </div>
+
+      <div class="col-lg-8">
+        <div class="row mb-2">
+          <div class="col-8">
+            <h5 id="selected-dir">Барлық бағыттар</h5>
+          </div>
+          <div class="col-4 text-end">
+            <select id="sort" class="form-select form-select-sm w-auto d-inline-block">
+              <option value="popular">Танымал бойынша</option>
+              <option value="alpha">Әріп тәртібі</option>
+            </select>
+          </div>
+        </div>
+
+        <div id="specials" class="row g-3"></div>
+        <div id="no-results" class="no-results d-none">Нәтиже табылмады.</div>
+      </div>
+
+    </div>
+  </main>
+
+  <!-- Modal for details -->
+  <div class="modal fade" id="detailModal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="modal-title">Мамандық туралы</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <p id="modal-desc"></p>
+          <ul id="modal-list"></ul>
+          <div class="mt-3">
+            <button id="add-fav" class="btn btn-primary">Таңдауға қосу</button>
+            <button id="share-btn" class="btn btn-outline-secondary ms-2">Сілтемені көшіру</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+    // Деректер (қосуға/өзгертуге болады)
+    const data = [
+      {
+        id: 'med',
+        title: 'Медицина',
+        description: 'Дәрігер, фармацевт, зерттеуші — адамдардың денсаулығына арналған мамандықтар.',
+        specialties: [
+          {id:'therapist', title:'Терапевт', desc:'Терапевт — жалпы ішкі аурулармен айналысады.', popular:5, details:['Жұмыс: емхана, аурухана','Білім: медицина факультеті']},
+          {id:'surgeon', title:'Хирург', desc:'Ота жасаумен айналысады.', popular:4, details:['Жұмыс: хирургиялық блок','Білім: клиникалық ординатура']},
+          {id:'pediatrician', title:'Педиатр', desc:'Балалар дәрігері.', popular:4, details:['Жұмыс: балалар бөлімдері','Мамандыққа эмоционалдық төзімділік қажет']},
+          {id:'dentist', title:'Стоматолог', desc:'Тістің және ауыз қуысының ауруларын емдейді.', popular:3, details:['Жеке практика кең таралған','Қосымша курстар маңызды']}
+        ]
+      },
+      {
+        id: 'edu',
+        title: 'Педагогика',
+        description: 'Мұғалімдік және тәрбие жұмысы: мектеп, балабақша, жоғары оқу орны.',
+        specialties:[
+          {id:'preschool', title:'Балабақша тәрбиешісі', desc:'Жас балалармен жұмыс жасайды.', popular:4, details:['Жұмыс: балабақша','Сабырлы және жанашыр болу қажет']},
+          {id:'math_teacher', title:'Математика мұғалімі', desc:'Мектеп оқушыларын оқытады.', popular:3, details:['Жұмыс: мектеп','Пәндік білім мықты болуы тиіс']},
+          {id:'history_teacher', title:'Тарих мұғалімі', desc:'Тарих пәнін оқытады.', popular:2, details:['Жұмыс: мектеп','Зерттеу мен материалдар даярлау']}
+        ]
+      },
+      {
+        id: 'it',
+        title: 'IT және Бағдарламалау',
+        description: 'Жүйелік, бағдарламалық өнімдер жасау: программалаушы, тестер, жүйе әкімшісі.',
+        specialties:[
+          {id:'dev', title:'Бағдарламашы', desc:'Веб, мобильді немесе жүйелік бағдарламалау.', popular:5, details:['Жұмыс: стартаптар, компаниялар','Өздігінен үйрену маңызды']},
+          {id:'qa', title:'QA инженер', desc:'Бағдарламаларды тестілейді.', popular:3, details:['Жұмыс: сапа бақылау','Автоматтандыру біліктілігі артықшылық']}
+        ]
+      },
+      {
+        id: 'law',
+        title: 'Заң және Құқық',
+        description: 'Адвокат, құқық қорғау жүйесі, нотариат туралы мамандықтар.',
+        specialties:[
+          {id:'lawyer', title:'Адвокат', desc:'Құқық қорғаушы.', popular:3, details:['Жұмыс: заң кеңселері','Интернатура, практика қажет']}
+        ]
+      }
+    ];
+
+    // App state
+    let currentDir = null;
+    let favs = JSON.parse(localStorage.getItem('favs_v1') || '[]');
+
+    function renderDirections(){
+      const $d = $('#directions').empty();
+      const all = $('<button>').addClass('list-group-item list-group-item-action').text('Барлығы').data('id', null);
+      $d.append(all);
+      data.forEach(dir=>{
+        const btn = $('<button>').addClass('list-group-item list-group-item-action d-flex justify-content-between align-items-start')
+          .text(dir.title)
+          .data('id', dir.id);
+        const badge = $('<span>').addClass('badge bg-primary rounded-pill badge-dir').text(dir.specialties.length);
+        btn.append(badge);
+        $d.append(btn);
+      });
+    }
+
+    function getAllSpecialties(){
+      return data.flatMap(dir=>dir.specialties.map(s=>({...s, dirTitle:dir.title, dirId:dir.id, dirDesc:dir.description})));
+    }
+
+    function renderSpecials(filterText=''){
+      const arr = getAllSpecialties();
+      const sortBy = $('#sort').val();
+      let list = arr.filter(s=>{
+        if(currentDir && s.dirId !== currentDir) return false;
+        if(!filterText) return true;
+        return s.title.toLowerCase().includes(filterText.toLowerCase()) || s.desc.toLowerCase().includes(filterText.toLowerCase());
+      });
+      if(sortBy==='alpha') list.sort((a,b)=>a.title.localeCompare(b.title));
+      else list.sort((a,b)=> (b.popular||0) - (a.popular||0));
+
+      $('#specials').empty();
+      if(list.length===0){
+        $('#no-results').removeClass('d-none');
+        return;
+      }
+      $('#no-results').addClass('d-none');
+      list.forEach(s=>{
+        const card = $(
+          `<div class="col-md-6 col-lg-4">
+            <div class="card card-special p-3 h-100">
+              <div class="d-flex justify-content-between align-items-start">
+                <h6>${s.title}</h6>
+                <div>
+                  <small class="text-muted">${s.dirTitle}</small>
+                </div>
+              </div>
+              <p class="mb-2 small text-muted">${s.desc}</p>
+              <div class="d-flex justify-content-between align-items-center mt-auto">
+                <button class="btn btn-sm btn-outline-primary btn-details" data-id="${s.id}">Толығырақ</button>
+                <button class="btn btn-sm btn-link btn-fav ${favs.includes(s.id)?'fav':''}" data-id="${s.id}">${favs.includes(s.id)?'❤️':'♡'}</button>
+              </div>
+            </div>
+          </div>`
+        );
+        $('#specials').append(card);
+      });
+    }
+
+    function openDetails(id){
+      const all = getAllSpecialties();
+      const s = all.find(x=>x.id===id);
+      if(!s) return;
+      $('#modal-title').text(s.title + ' — ' + s.dirTitle);
+      $('#modal-desc').text(s.desc + ' \n\n' + s.dirDesc);
+      $('#modal-list').empty();
+      (s.details||[]).forEach(d=>$('#modal-list').append($('<li>').text(d)));
+      $('#add-fav').data('id', s.id).text(favs.includes(s.id)?'Таңдаудан алу':'Таңдауға қосу');
+      const modal = new bootstrap.Modal(document.getElementById('detailModal'));
+      modal.show();
+    }
+
+    function toggleFav(id){
+      if(favs.includes(id)) favs = favs.filter(x=>x!==id);
+      else favs.push(id);
+      localStorage.setItem('favs_v1', JSON.stringify(favs));
+      $('#fav-count').text(favs.length);
+      renderSpecials($('#search').val());
+    }
+
+    $(function(){
+      renderDirections();
+      renderSpecials();
+      $('#fav-count').text(favs.length);
+
+      // direction click
+      $('#directions').on('click','button', function(){
+        const id = $(this).data('id') || null;
+        currentDir = id;
+        const dir = data.find(d=>d.id===id);
+        $('#selected-dir').text(dir?dir.title:'Барлық бағыттар');
+        renderSpecials($('#search').val());
+      });
+
+      $('#search').on('input', function(){
+        renderSpecials($(this).val());
+      });
+
+      $('#sort').on('change', function(){ renderSpecials($('#search').val()); });
+
+      $('#specials').on('click', '.btn-details', function(){ openDetails($(this).data('id')); });
+
+      $('#specials').on('click', '.btn-fav', function(){ toggleFav($(this).data('id')); });
+
+      $('#add-fav').on('click', function(){ toggleFav($(this).data('id')); });
+
+      $('#view-favs').on('click', function(){
+        const list = getAllSpecialties().filter(s=>favs.includes(s.id));
+        if(list.length===0){ alert('Сіздің таңдауларыңыз бос.'); return; }
+        let txt = 'Сіздің таңдауларыңыз:\n';
+        list.forEach(s=> txt += '- ' + s.title + ' (' + s.dirTitle + ')\n');
+        alert(txt);
+      });
+
+      $('#share-btn').on('click', function(){
+        const id = $('#add-fav').data('id');
+        const url = location.origin + location.pathname + '?special=' + encodeURIComponent(id);
+        navigator.clipboard?.writeText(url).then(()=> alert('Сілтеме көшірілді: ' + url), ()=>alert('Көшірілмеді, браузер қолдамайды'));
+      });
+
+      // URL арқылы мамандық ашу
+      const params = new URLSearchParams(location.search);
+      if(params.has('special')){
+        const sid = params.get('special');
+        setTimeout(()=> openDetails(sid), 300);
+      }
+
+    });
+  </script>
+</body>
+</html>
